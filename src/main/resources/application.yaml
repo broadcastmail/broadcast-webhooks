@@ -1,0 +1,17 @@
+spring:
+  application:
+    name: broadcast-webhooks
+  datasource:
+    url: jdbc:postgresql://${PGHOST}:${PGPORT}/${PGDATABASE}
+    username: ${PGUSER}
+    password: ${PGPASSWORD}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: validate
+  flyway:
+    enabled: false
+
+app:
+  encryption:
+    key: ${ENCRYPTION_KEY}
