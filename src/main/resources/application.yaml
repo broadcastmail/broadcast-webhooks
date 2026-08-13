@@ -15,3 +15,6 @@ spring:
 app:
   encryption:
     key: ${ENCRYPTION_KEY}
+
+stripe:
+  webhook-secret: ${STRIPE_WEBHOOK_SECRET}
