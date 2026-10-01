@@ -2,6 +2,7 @@ package com.broadcastmail.webhooks.stripe;
 
 import com.broadcastmail.common.account.Account;
 import com.broadcastmail.common.account.AccountRepository;
+import com.broadcastmail.common.account.plan.Plan;
 import com.stripe.model.Event;
 import com.stripe.model.EventDataObjectDeserializer;
 import com.stripe.model.Subscription;
@@ -30,25 +31,24 @@ class StripeWebhookServiceTest {
 
     private static final String ACCOUNT_ID = UUID.randomUUID().toString();
     private static final String CUSTOMER_ID = "cus_test123";
-    private static final String PLAN = "pro";
 
     @Test
     void shouldUpgradePlanOnCheckoutCompleted() {
         // Given
         Account account = Account.builder()
                 .id(UUID.fromString(ACCOUNT_ID))
-                .plan("free")
+                .plan(Plan.FREE)
                 .build();
         when(accountRepository.findById(UUID.fromString(ACCOUNT_ID)))
                 .thenReturn(Optional.of(account));
 
-        Event event = mockCheckoutEvent(ACCOUNT_ID, PLAN, CUSTOMER_ID);
+        Event event = mockCheckoutEvent(ACCOUNT_ID, Plan.PRO.name(), CUSTOMER_ID);
 
         // When
         stripeWebhookService.process(event);
 
         // Then
-        assertThat(account.getPlan()).isEqualTo(PLAN);
+        assertThat(account.getPlan()).isEqualTo(Plan.PRO);
         assertThat(account.getStripeCustomerId()).isEqualTo(CUSTOMER_ID);
         verify(accountRepository).save(account);
     }
@@ -58,7 +58,7 @@ class StripeWebhookServiceTest {
         // Given
         Account account = Account.builder()
                 .id(UUID.fromString(ACCOUNT_ID))
-                .plan("pro")
+                .plan(Plan.PRO)
                 .stripeCustomerId(CUSTOMER_ID)
                 .build();
         when(accountRepository.findByStripeCustomerId(CUSTOMER_ID))
@@ -70,7 +70,7 @@ class StripeWebhookServiceTest {
         stripeWebhookService.process(event);
 
         // Then
-        assertThat(account.getPlan()).isEqualTo("free");
+        assertThat(account.getPlan()).isEqualTo(Plan.FREE);
         verify(accountRepository).save(account);
     }
 
@@ -78,7 +78,7 @@ class StripeWebhookServiceTest {
     void shouldLogErrorWhenAccountNotFoundOnCheckout() {
         // Given
         when(accountRepository.findById(any())).thenReturn(Optional.empty());
-        Event event = mockCheckoutEvent(ACCOUNT_ID, PLAN, CUSTOMER_ID);
+        Event event = mockCheckoutEvent(ACCOUNT_ID, Plan.PRO.name(), CUSTOMER_ID);
 
         // When — should not throw
         assertThatNoException().isThrownBy(() -> stripeWebhookService.process(event));
