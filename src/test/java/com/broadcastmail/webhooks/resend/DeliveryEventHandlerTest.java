@@ -3,6 +3,7 @@ package com.broadcastmail.webhooks.resend;
 import com.broadcastmail.common.campaign.CampaignRepository;
 import com.broadcastmail.common.campaign.recipient.CampaignRecipient;
 import com.broadcastmail.common.campaign.recipient.CampaignRecipientRepository;
+import com.broadcastmail.common.suppressions.SuppressionsRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -14,6 +15,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -26,15 +28,19 @@ class DeliveryEventHandlerTest {
     @Mock
     private CampaignRepository campaignRepository;
 
+    @Mock
+    private SuppressionsRepository suppressionsRepository;
+
     @InjectMocks
     private DeliveryEventHandler deliveryEventHandler;
 
     private static final String EMAIL_ID = "msg-123";
     private static final UUID CAMPAIGN_ID = UUID.randomUUID();
+    private static final UUID RECIPIENT_ID = UUID.randomUUID();
 
     private CampaignRecipient recipient() {
         return CampaignRecipient.builder()
-                .id(UUID.randomUUID())
+                .id(RECIPIENT_ID)
                 .campaignId(CAMPAIGN_ID)
                 .build();
     }
@@ -71,16 +77,31 @@ class DeliveryEventHandlerTest {
     }
 
     @Test
-    void shouldMarkRecipientBouncedAndIncrementCounter() {
+    void shouldMarkRecipientHardBouncedIncrementCounterAndSuppress() {
         // Given
         stubRecipient();
 
         // When
-        deliveryEventHandler.handleBounced(EMAIL_ID);
+        deliveryEventHandler.handleHardBounced(EMAIL_ID);
 
         // Then
         verify(campaignRecipientRepository).markBounced(EMAIL_ID);
         verify(campaignRepository).incrementBouncedCount(CAMPAIGN_ID);
+        verify(suppressionsRepository).insertFromRecipientWithReason(RECIPIENT_ID, "BOUNCE");
+    }
+
+    @Test
+    void shouldMarkRecipientSoftBouncedAndIncrementCounterWithoutSuppression() {
+        // Given
+        stubRecipient();
+
+        // When
+        deliveryEventHandler.handleSoftBounced(EMAIL_ID);
+
+        // Then
+        verify(campaignRecipientRepository).markBounced(EMAIL_ID);
+        verify(campaignRepository).incrementBouncedCount(CAMPAIGN_ID);
+        verify(suppressionsRepository, never()).insertFromRecipientWithReason(RECIPIENT_ID, "BOUNCE");
     }
 
     @Test

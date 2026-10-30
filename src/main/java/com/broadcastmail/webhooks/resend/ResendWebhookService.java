@@ -45,7 +45,13 @@ public class ResendWebhookService {
             switch (event.type()) {
                 case "email.delivered" -> deliveryEventHandler.handleDelivered(emailId);
                 case "email.opened"    -> deliveryEventHandler.handleOpened(emailId);
-                case "email.bounced"   -> deliveryEventHandler.handleBounced(emailId);
+                case "email.bounced"   -> {
+                    if ("Permanent".equals(event.data().bounce().type())) {
+                        deliveryEventHandler.handleHardBounced(emailId);
+                    } else {
+                        deliveryEventHandler.handleSoftBounced(emailId);
+                    }
+                }
                 case "email.failed" -> deliveryEventHandler.handleFailed(emailId,
                         event.data().bounce() != null ? event.data().bounce().message() : "Unknown error");
                 default -> {

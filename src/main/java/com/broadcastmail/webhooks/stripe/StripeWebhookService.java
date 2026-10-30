@@ -12,6 +12,9 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.time.Instant;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -72,10 +75,16 @@ public class StripeWebhookService {
 
         String customerId = subscription.getCustomer();
         String status = subscription.getStatus();
+        OffsetDateTime periodEnd = OffsetDateTime.ofInstant(
+                Instant.ofEpochSecond(subscription.getItems().getData().getFirst().getCurrentPeriodEnd()),
+                ZoneOffset.UTC);
+        boolean cancelAtPeriodEnd = Boolean.TRUE.equals(subscription.getCancelAtPeriodEnd());
 
         accountRepository.findByStripeCustomerId(customerId).ifPresentOrElse(
                 account -> {
                     account.setStripeSubscriptionStatus(status);
+                    account.setStripeCurrentPeriodEnd(periodEnd);
+                    account.setStripeCancelAtPeriodEnd(cancelAtPeriodEnd);
                     accountRepository.save(account);
                     log.info("Account {} subscription status updated to {}", account.getId(), status);
                 },
@@ -98,6 +107,8 @@ public class StripeWebhookService {
                 account -> {
                     account.setPlan(Plan.FREE);
                     account.setStripeSubscriptionStatus("canceled");
+                    account.setStripeCurrentPeriodEnd(null);
+                    account.setStripeCancelAtPeriodEnd(false);
                     accountRepository.save(account);
                     log.info("Account {} downgraded to FREE", account.getId());
                 },
