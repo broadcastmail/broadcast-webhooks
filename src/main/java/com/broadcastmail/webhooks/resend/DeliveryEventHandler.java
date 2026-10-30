@@ -1,7 +1,9 @@
 package com.broadcastmail.webhooks.resend;
 
 import com.broadcastmail.common.campaign.CampaignRepository;
+import com.broadcastmail.common.campaign.recipient.CampaignRecipient;
 import com.broadcastmail.common.campaign.recipient.CampaignRecipientRepository;
+import com.broadcastmail.common.suppressions.SuppressionsRepository;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -16,6 +18,7 @@ public class DeliveryEventHandler {
 
     private final CampaignRecipientRepository campaignRecipientRepository;
     private final CampaignRepository campaignRepository;
+    private final SuppressionsRepository suppressionsRepository;
 
     @Transactional
     public void handleDelivered(String emailId) {
@@ -32,10 +35,18 @@ public class DeliveryEventHandler {
     }
 
     @Transactional
-    public void handleBounced(String emailId) {
+    public void handleSoftBounced(String emailId) {
         UUID campaignId = getCampaignId(emailId);
         campaignRecipientRepository.markBounced(emailId);
         campaignRepository.incrementBouncedCount(campaignId);
+    }
+
+    @Transactional
+    public void handleHardBounced(String emailId) {
+        CampaignRecipient recipient = getCampaignRecipient(emailId);
+        campaignRecipientRepository.markBounced(emailId);
+        campaignRepository.incrementBouncedCount(recipient.getCampaignId());
+        suppressionsRepository.insertFromRecipientWithReason(recipient.getId(), "BOUNCE");
     }
 
     @Transactional
@@ -49,5 +60,10 @@ public class DeliveryEventHandler {
         return campaignRecipientRepository.findByResendMessageId(emailId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Recipient not found"))
                 .getCampaignId();
+    }
+
+    private CampaignRecipient getCampaignRecipient(String emailId) {
+        return campaignRecipientRepository.findByResendMessageId(emailId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Recipient not found"));
     }
 }

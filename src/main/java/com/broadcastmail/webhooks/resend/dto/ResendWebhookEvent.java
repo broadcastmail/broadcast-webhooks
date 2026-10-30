@@ -11,6 +11,6 @@ public record ResendWebhookEvent(
             @JsonProperty("email_id") String emailId,
             @JsonProperty("bounce") BounceInfo bounce
     ) {
-        public record BounceInfo(String message) {}
+        public record BounceInfo(String type, String message) {}
     }
 }
