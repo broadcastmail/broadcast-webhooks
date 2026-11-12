@@ -42,13 +42,13 @@ class StripeWebhookServiceTest {
         when(accountRepository.findById(UUID.fromString(ACCOUNT_ID)))
                 .thenReturn(Optional.of(account));
 
-        Event event = mockCheckoutEvent(ACCOUNT_ID, Plan.PRO.name(), CUSTOMER_ID);
+        Event event = mockCheckoutEvent(ACCOUNT_ID, Plan.STARTER.name(), CUSTOMER_ID);
 
         // When
         stripeWebhookService.process(event);
 
         // Then
-        assertThat(account.getPlan()).isEqualTo(Plan.PRO);
+        assertThat(account.getPlan()).isEqualTo(Plan.STARTER);
         assertThat(account.getStripeCustomerId()).isEqualTo(CUSTOMER_ID);
         verify(accountRepository).save(account);
     }
@@ -58,7 +58,7 @@ class StripeWebhookServiceTest {
         // Given
         Account account = Account.builder()
                 .id(UUID.fromString(ACCOUNT_ID))
-                .plan(Plan.PRO)
+                .plan(Plan.STARTER)
                 .stripeCustomerId(CUSTOMER_ID)
                 .build();
         when(accountRepository.findByStripeCustomerId(CUSTOMER_ID))
@@ -78,7 +78,7 @@ class StripeWebhookServiceTest {
     void shouldLogErrorWhenAccountNotFoundOnCheckout() {
         // Given
         when(accountRepository.findById(any())).thenReturn(Optional.empty());
-        Event event = mockCheckoutEvent(ACCOUNT_ID, Plan.PRO.name(), CUSTOMER_ID);
+        Event event = mockCheckoutEvent(ACCOUNT_ID, Plan.STARTER.name(), CUSTOMER_ID);
 
         // When — should not throw
         assertThatNoException().isThrownBy(() -> stripeWebhookService.process(event));

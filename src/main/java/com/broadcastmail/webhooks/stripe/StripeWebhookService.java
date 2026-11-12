@@ -54,11 +54,11 @@ public class StripeWebhookService {
         accountRepository.findById(UUID.fromString(accountId))
                 .ifPresentOrElse(
                         account -> {
-                            account.setPlan(Plan.PRO);
+                            account.setPlan(Plan.STARTER);
                             account.setStripeCustomerId(customerId);
                             account.setStripeSubscriptionStatus("active");
                             accountRepository.save(account);
-                            log.info("Account {} upgraded to PRO", accountId);
+                            log.info("Account {} upgraded to STARTER", accountId);
                         },
                         () -> log.error("Account not found for id {}", accountId)
                 );
