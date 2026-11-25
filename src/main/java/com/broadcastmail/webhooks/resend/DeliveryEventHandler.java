@@ -50,6 +50,12 @@ public class DeliveryEventHandler {
     }
 
     @Transactional
+    public void handleComplained(String emailId) {
+        CampaignRecipient recipient = getCampaignRecipient(emailId);
+        suppressionsRepository.insertFromRecipientWithReason(recipient.getId(), "COMPLAINT");
+    }
+
+    @Transactional
     public void handleFailed(String emailId, String reason) {
         UUID campaignId = getCampaignId(emailId);
         campaignRecipientRepository.markFailed(emailId, reason);
