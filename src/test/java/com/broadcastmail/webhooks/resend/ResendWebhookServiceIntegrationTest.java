@@ -1,8 +1,13 @@
 package com.broadcastmail.webhooks.resend;
 
 import com.broadcastmail.TestContainersConfiguration;
+import com.broadcastmail.common.account.Account;
+import com.broadcastmail.common.account.AccountRepository;
+import com.broadcastmail.common.account.plan.Plan;
 import com.broadcastmail.webhooks.webhookevents.WebhookEventRepository;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -24,9 +29,27 @@ class ResendWebhookServiceIntegrationTest {
     @Autowired
     private WebhookEventRepository webhookEventRepository;
 
+    @Autowired
+    private AccountRepository accountRepository;
+
+    private UUID accountId;
+
     @BeforeEach
     void setUp() {
         webhookEventRepository.deleteAll();
+        accountId = accountRepository.save(Account.builder()
+                .email(UUID.randomUUID() + "@example.com")
+                .passwordHash("")
+                .apiKeyHash(UUID.randomUUID().toString())
+                .plan(Plan.FREE)
+                .emailVerified(true)
+                .build()).getId();
+    }
+
+    @AfterEach
+    void tearDown() {
+        webhookEventRepository.deleteAll();
+        accountRepository.deleteAll();
     }
 
     @ParameterizedTest
@@ -43,11 +66,35 @@ class ResendWebhookServiceIntegrationTest {
         String payload = template.formatted(UUID.randomUUID());
 
         // When: Resend delivers it, then retries it
-        assertThatNoException().isThrownBy(() -> resendWebhookService.process(svixId, payload));
-        resendWebhookService.process(svixId, payload);
+        assertThatNoException().isThrownBy(() -> resendWebhookService.process(accountId, svixId, payload));
+        resendWebhookService.process(accountId, svixId, payload);
 
         // Then
         assertThat(webhookEventRepository.count()).isEqualTo(1);
         assertThat(webhookEventRepository.existsByProviderEventIdAndProcessedTrue(svixId)).isTrue();
     }
+
+    @Test
+    void shouldStoreTheAccountThatReceivedTheEvent() {
+        // When
+        resendWebhookService.process(accountId, "msg_account", DELIVERED.formatted(UUID.randomUUID()));
+
+        // Then
+        assertThat(webhookEventRepository.existsByProviderEventIdAndAccountId("msg_account", accountId)).isTrue();
+    }
+
+    @Test
+    void shouldDeleteAnAccountsEventsWithTheAccount() {
+        // Given
+        resendWebhookService.process(accountId, "msg_gone", DELIVERED.formatted(UUID.randomUUID()));
+
+        // When
+        accountRepository.deleteById(accountId);
+
+        // Then
+        assertThat(webhookEventRepository.count()).isZero();
+    }
+
+    private static final String DELIVERED =
+            "{\"type\":\"email.delivered\",\"created_at\":\"2026-11-25T10:00:00Z\",\"data\":{\"email_id\":\"%s\"}}";
 }
