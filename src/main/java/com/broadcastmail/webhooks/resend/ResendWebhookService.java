@@ -13,6 +13,7 @@ import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
 
 import java.util.Map;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -23,7 +24,7 @@ public class ResendWebhookService {
     private final ObjectMapper mapper;
 
     @Transactional
-    public void process(String svixId, String payload) {
+    public void process(UUID accountId, String svixId, String payload) {
         if (webhookEventRepository.existsByProviderEventId(svixId)) {
             return;
         }
@@ -36,6 +37,7 @@ public class ResendWebhookService {
 
             WebhookEvent webhookEvent = WebhookEvent.builder()
                     .providerEventId(svixId)
+                    .accountId(accountId)
                     .eventType(event.type())
                     .rawPayload(rawPayloadMap)
                     .processed(false)

@@ -48,7 +48,7 @@ public class ResendWebhookController {
         if (svixId == null || svixId.isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Missing svix-id header");
         }
-        resendWebhookService.process(svixId, payload);
+        resendWebhookService.process(accountId, svixId, payload);
 
         return ResponseEntity.ok().build();
     }
