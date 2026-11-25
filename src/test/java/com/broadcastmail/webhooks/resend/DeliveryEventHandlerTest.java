@@ -13,6 +13,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Consumer;
@@ -40,6 +41,8 @@ class DeliveryEventHandlerTest {
     private DeliveryEventHandler deliveryEventHandler;
 
     private static final String EMAIL_ID = "msg-123";
+    private static final UUID ACCOUNT_ID = UUID.randomUUID();
+    private static final List<String> TO = List.of("user@example.com");
     private static final UUID CAMPAIGN_ID = UUID.randomUUID();
     private static final UUID RECIPIENT_ID = UUID.randomUUID();
 
@@ -87,24 +90,43 @@ class DeliveryEventHandlerTest {
         stubRecipient();
 
         // When
-        deliveryEventHandler.handleHardBounced(EMAIL_ID);
+        deliveryEventHandler.handleHardBounced(ACCOUNT_ID, EMAIL_ID, TO);
 
         // Then
         verify(campaignRecipientRepository).markBounced(EMAIL_ID);
         verify(campaignRepository).incrementBouncedCount(CAMPAIGN_ID);
-        verify(suppressionsRepository).insertFromRecipientWithReason(RECIPIENT_ID, "BOUNCE");
+        verify(suppressionsRepository).insertWithReason(ACCOUNT_ID, "user@example.com", "BOUNCE");
     }
 
     @Test
     void shouldSuppressRecipientWhoComplained() {
-        // Given
-        stubRecipient();
-
         // When
-        deliveryEventHandler.handleComplained(EMAIL_ID);
+        deliveryEventHandler.handleComplained(ACCOUNT_ID, TO);
 
         // Then
-        verify(suppressionsRepository).insertFromRecipientWithReason(RECIPIENT_ID, "COMPLAINT");
+        verify(suppressionsRepository).insertWithReason(ACCOUNT_ID, "user@example.com", "COMPLAINT");
+    }
+
+    @Test
+    void shouldSuppressALateHardBounceWhoseRecipientRetentionDeleted() {
+        // Given
+        when(campaignRecipientRepository.findByResendMessageId(EMAIL_ID)).thenReturn(Optional.empty());
+
+        // When
+        deliveryEventHandler.handleHardBounced(ACCOUNT_ID, EMAIL_ID, TO);
+
+        // Then: nothing to mark or count, but the address is still suppressed
+        verify(suppressionsRepository).insertWithReason(ACCOUNT_ID, "user@example.com", "BOUNCE");
+        verifyNoInteractions(campaignRepository);
+    }
+
+    @Test
+    void shouldNotSuppressWhenTheEventHasNoAddress() {
+        // When
+        deliveryEventHandler.handleComplained(ACCOUNT_ID, List.of());
+
+        // Then
+        verifyNoInteractions(suppressionsRepository);
     }
 
     @Test
@@ -139,8 +161,6 @@ class DeliveryEventHandlerTest {
                 Arguments.of("delivered", (Consumer<DeliveryEventHandler>) h -> h.handleDelivered(EMAIL_ID)),
                 Arguments.of("opened", (Consumer<DeliveryEventHandler>) h -> h.handleOpened(EMAIL_ID)),
                 Arguments.of("soft bounce", (Consumer<DeliveryEventHandler>) h -> h.handleSoftBounced(EMAIL_ID)),
-                Arguments.of("hard bounce", (Consumer<DeliveryEventHandler>) h -> h.handleHardBounced(EMAIL_ID)),
-                Arguments.of("complained", (Consumer<DeliveryEventHandler>) h -> h.handleComplained(EMAIL_ID)),
                 Arguments.of("failed", (Consumer<DeliveryEventHandler>) h -> h.handleFailed(EMAIL_ID, "reason")));
     }
 

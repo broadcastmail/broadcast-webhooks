@@ -9,7 +9,9 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 /**
  * Applies Resend delivery events to the recipient they belong to.
@@ -52,18 +54,26 @@ public class DeliveryEventHandler {
     }
 
     @Transactional
-    public void handleHardBounced(String emailId) {
+    public void handleHardBounced(UUID accountId, String emailId, List<String> to) {
         findRecipient(emailId, "email.bounced").ifPresent(recipient -> {
             campaignRecipientRepository.markBounced(emailId);
             campaignRepository.incrementBouncedCount(recipient.getCampaignId());
-            suppressionsRepository.insertFromRecipientWithReason(recipient.getId(), "BOUNCE");
         });
+        suppress(accountId, to, "BOUNCE");
     }
 
     @Transactional
-    public void handleComplained(String emailId) {
-        findRecipient(emailId, "email.complained").ifPresent(recipient ->
-                suppressionsRepository.insertFromRecipientWithReason(recipient.getId(), "COMPLAINT"));
+    public void handleComplained(UUID accountId, List<String> to) {
+        suppress(accountId, to, "COMPLAINT");
+    }
+
+    // Suppresses by the address Resend reports, not the recipient row, so it works after retention deleted the row.
+    private void suppress(UUID accountId, List<String> to, String reason) {
+        if (to == null || to.isEmpty()) {
+            log.warn("Cannot suppress for {}: event has no recipient address", reason);
+            return;
+        }
+        to.forEach(email -> suppressionsRepository.insertWithReason(accountId, email, reason));
     }
 
     @Transactional
