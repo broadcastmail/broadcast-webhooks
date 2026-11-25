@@ -35,6 +35,9 @@ class ResendWebhookServiceTest {
     private static final String PAYLOAD = """
             {"type":"email.delivered","created_at":"2026-08-05T10:00:00Z","data":{"email_id":"msg-123"}}
             """;
+    private static final String COMPLAINT_PAYLOAD = """
+            {"type":"email.complained","created_at":"2026-08-05T10:00:00Z","data":{"email_id":"msg-123"}}
+            """;
 
     @Test
     void shouldProcessDeliveredEventSuccessfully() throws Exception {
@@ -51,6 +54,23 @@ class ResendWebhookServiceTest {
         // Then
         verify(deliveryEventHandler).handleDelivered("msg-123");
         verify(webhookEventRepository, times(2)).save(any(WebhookEvent.class));    }
+
+    @Test
+    void shouldProcessComplainedEventSuccessfully() {
+        // Given
+        when(webhookEventRepository.existsByProviderEventId(SVIX_ID)).thenReturn(false);
+        ResendWebhookEvent event = new ResendWebhookEvent(
+                "email.complained", "2026-08-05T10:00:00Z",
+                new ResendWebhookEvent.ResendWebhookEventData("msg-123", null));
+        when(mapper.readValue(COMPLAINT_PAYLOAD, ResendWebhookEvent.class)).thenReturn(event);
+
+        // When
+        resendWebhookService.process(SVIX_ID, COMPLAINT_PAYLOAD);
+
+        // Then
+        verify(deliveryEventHandler).handleComplained("msg-123");
+        verify(webhookEventRepository, times(2)).save(any(WebhookEvent.class));
+    }
 
     @Test
     void shouldSkipDuplicateEventByProviderEventId() {

@@ -52,6 +52,7 @@ public class ResendWebhookService {
                         deliveryEventHandler.handleSoftBounced(emailId);
                     }
                 }
+                case "email.complained" -> deliveryEventHandler.handleComplained(emailId);
                 case "email.failed" -> deliveryEventHandler.handleFailed(emailId,
                         event.data().bounce() != null ? event.data().bounce().message() : "Unknown error");
                 default -> {

@@ -91,6 +91,29 @@ class DeliveryEventHandlerTest {
     }
 
     @Test
+    void shouldSuppressRecipientWhoComplained() {
+        // Given
+        stubRecipient();
+
+        // When
+        deliveryEventHandler.handleComplained(EMAIL_ID);
+
+        // Then
+        verify(suppressionsRepository).insertFromRecipientWithReason(RECIPIENT_ID, "COMPLAINT");
+    }
+
+    @Test
+    void shouldThrowWhenComplaintRecipientNotFound() {
+        // Given
+        when(campaignRecipientRepository.findByResendMessageId(EMAIL_ID)).thenReturn(Optional.empty());
+
+        // When / Then
+        assertThatThrownBy(() -> deliveryEventHandler.handleComplained(EMAIL_ID))
+                .isInstanceOf(ResponseStatusException.class);
+        verify(suppressionsRepository, never()).insertFromRecipientWithReason(RECIPIENT_ID, "COMPLAINT");
+    }
+
+    @Test
     void shouldMarkRecipientSoftBouncedAndIncrementCounterWithoutSuppression() {
         // Given
         stubRecipient();
