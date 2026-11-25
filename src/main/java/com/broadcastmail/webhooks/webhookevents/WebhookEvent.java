@@ -29,9 +29,6 @@ public class WebhookEvent {
     @Column(name = "provider_event_id", nullable = false)
     private String providerEventId;
 
-    @Column(name = "campaign_recipient_id")
-    private UUID campaignRecipient;
-
     @NotNull
     @Column(name = "event_type", nullable = false)
     private String eventType;
