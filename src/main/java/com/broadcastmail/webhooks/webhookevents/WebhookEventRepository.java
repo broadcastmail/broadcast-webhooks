@@ -6,4 +6,6 @@ import java.util.UUID;
 
 public interface WebhookEventRepository extends JpaRepository<WebhookEvent, UUID> {
     boolean existsByProviderEventId(String providerEventId);
+
+    boolean existsByProviderEventIdAndProcessedTrue(String providerEventId);
 }

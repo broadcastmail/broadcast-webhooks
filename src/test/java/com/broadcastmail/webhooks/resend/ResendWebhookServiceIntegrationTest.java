@@ -8,10 +8,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
-import org.springframework.jdbc.core.JdbcTemplate;
 
-import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -26,9 +23,6 @@ class ResendWebhookServiceIntegrationTest {
 
     @Autowired
     private WebhookEventRepository webhookEventRepository;
-
-    @Autowired
-    private JdbcTemplate jdbcTemplate;
 
     @BeforeEach
     void setUp() {
@@ -53,11 +47,7 @@ class ResendWebhookServiceIntegrationTest {
         resendWebhookService.process(svixId, payload);
 
         // Then
-        List<Map<String, Object>> events = jdbcTemplate.queryForList(
-                "SELECT provider_event_id, processed FROM webhook_events");
-        assertThat(events).hasSize(1);
-        assertThat(events.getFirst())
-                .containsEntry("provider_event_id", svixId)
-                .containsEntry("processed", true);
+        assertThat(webhookEventRepository.count()).isEqualTo(1);
+        assertThat(webhookEventRepository.existsByProviderEventIdAndProcessedTrue(svixId)).isTrue();
     }
 }
