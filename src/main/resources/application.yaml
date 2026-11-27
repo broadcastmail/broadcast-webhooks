@@ -1,4 +1,6 @@
 spring:
+  config:
+    import: optional:classpath:sentry-release.properties
   application:
     name: broadcast-webhooks
   datasource:
@@ -20,3 +22,9 @@ app:
 
 stripe:
   webhook-secret: ${STRIPE_WEBHOOK_SECRET}
+
+sentry:
+  dsn: ${SENTRY_DSN:}
+  environment: production
+  tags:
+    service: webhooks
