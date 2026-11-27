@@ -13,6 +13,7 @@ import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
 
 import java.util.Map;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -23,7 +24,7 @@ public class ResendWebhookService {
     private final ObjectMapper mapper;
 
     @Transactional
-    public void process(String svixId, String payload) {
+    public void process(UUID accountId, String svixId, String payload) {
         if (webhookEventRepository.existsByProviderEventId(svixId)) {
             return;
         }
@@ -36,6 +37,7 @@ public class ResendWebhookService {
 
             WebhookEvent webhookEvent = WebhookEvent.builder()
                     .providerEventId(svixId)
+                    .accountId(accountId)
                     .eventType(event.type())
                     .rawPayload(rawPayloadMap)
                     .processed(false)
@@ -47,11 +49,12 @@ public class ResendWebhookService {
                 case "email.opened"    -> deliveryEventHandler.handleOpened(emailId);
                 case "email.bounced"   -> {
                     if ("Permanent".equals(event.data().bounce().type())) {
-                        deliveryEventHandler.handleHardBounced(emailId);
+                        deliveryEventHandler.handleHardBounced(accountId, emailId, event.data().to());
                     } else {
                         deliveryEventHandler.handleSoftBounced(emailId);
                     }
                 }
+                case "email.complained" -> deliveryEventHandler.handleComplained(accountId, event.data().to());
                 case "email.failed" -> deliveryEventHandler.handleFailed(emailId,
                         event.data().bounce() != null ? event.data().bounce().message() : "Unknown error");
                 default -> {

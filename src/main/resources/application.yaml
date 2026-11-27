@@ -13,6 +13,8 @@ spring:
     enabled: false
 
 app:
+  # header Cloudflare adds to every proxied request; unset = check off (PRELAUNCH §7)
+  origin-secret: ${ORIGIN_SECRET:}
   encryption:
     key: ${ENCRYPTION_KEY}
 

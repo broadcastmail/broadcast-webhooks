@@ -73,7 +73,7 @@ class ResendWebhookControllerTest {
 
         // Then
         assertThat(response).hasStatus(200);
-        verify(resendWebhookService).process("msg-123", PAYLOAD);
+        verify(resendWebhookService).process(ACCOUNT_ID, "msg-123", PAYLOAD);
     }
 
     @Test
@@ -92,7 +92,7 @@ class ResendWebhookControllerTest {
 
         // Then
         assertThat(response).hasStatus(401);
-        verify(resendWebhookService, never()).process(any(), any());
+        verify(resendWebhookService, never()).process(any(), any(), any());
     }
 
     @Test
@@ -115,6 +115,6 @@ class ResendWebhookControllerTest {
 
         // Then
         assertThat(response).hasStatus(401);
-        verify(resendWebhookService, never()).process(any(), any());
+        verify(resendWebhookService, never()).process(any(), any(), any());
     }
 }

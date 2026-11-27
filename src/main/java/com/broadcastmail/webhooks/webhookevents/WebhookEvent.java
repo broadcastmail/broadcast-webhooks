@@ -29,8 +29,9 @@ public class WebhookEvent {
     @Column(name = "provider_event_id", nullable = false)
     private String providerEventId;
 
-    @Column(name = "campaign_recipient_id")
-    private UUID campaignRecipient;
+    // Account whose webhook URL received the event; NULL for events stored before V29.
+    @Column(name = "account_id")
+    private UUID accountId;
 
     @NotNull
     @Column(name = "event_type", nullable = false)

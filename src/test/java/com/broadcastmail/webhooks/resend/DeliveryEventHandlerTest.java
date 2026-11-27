@@ -6,17 +6,23 @@ import com.broadcastmail.common.campaign.recipient.CampaignRecipientRepository;
 import com.broadcastmail.common.suppressions.SuppressionsRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.web.server.ResponseStatusException;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.function.Consumer;
+import java.util.stream.Stream;
 
-import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -35,6 +41,8 @@ class DeliveryEventHandlerTest {
     private DeliveryEventHandler deliveryEventHandler;
 
     private static final String EMAIL_ID = "msg-123";
+    private static final UUID ACCOUNT_ID = UUID.randomUUID();
+    private static final List<String> TO = List.of("user@example.com");
     private static final UUID CAMPAIGN_ID = UUID.randomUUID();
     private static final UUID RECIPIENT_ID = UUID.randomUUID();
 
@@ -82,12 +90,43 @@ class DeliveryEventHandlerTest {
         stubRecipient();
 
         // When
-        deliveryEventHandler.handleHardBounced(EMAIL_ID);
+        deliveryEventHandler.handleHardBounced(ACCOUNT_ID, EMAIL_ID, TO);
 
         // Then
         verify(campaignRecipientRepository).markBounced(EMAIL_ID);
         verify(campaignRepository).incrementBouncedCount(CAMPAIGN_ID);
-        verify(suppressionsRepository).insertFromRecipientWithReason(RECIPIENT_ID, "BOUNCE");
+        verify(suppressionsRepository).insertWithReason(ACCOUNT_ID, "user@example.com", "BOUNCE");
+    }
+
+    @Test
+    void shouldSuppressRecipientWhoComplained() {
+        // When
+        deliveryEventHandler.handleComplained(ACCOUNT_ID, TO);
+
+        // Then
+        verify(suppressionsRepository).insertWithReason(ACCOUNT_ID, "user@example.com", "COMPLAINT");
+    }
+
+    @Test
+    void shouldSuppressALateHardBounceWhoseRecipientRetentionDeleted() {
+        // Given
+        when(campaignRecipientRepository.findByResendMessageId(EMAIL_ID)).thenReturn(Optional.empty());
+
+        // When
+        deliveryEventHandler.handleHardBounced(ACCOUNT_ID, EMAIL_ID, TO);
+
+        // Then: nothing to mark or count, but the address is still suppressed
+        verify(suppressionsRepository).insertWithReason(ACCOUNT_ID, "user@example.com", "BOUNCE");
+        verifyNoInteractions(campaignRepository);
+    }
+
+    @Test
+    void shouldNotSuppressWhenTheEventHasNoAddress() {
+        // When
+        deliveryEventHandler.handleComplained(ACCOUNT_ID, List.of());
+
+        // Then
+        verifyNoInteractions(suppressionsRepository);
     }
 
     @Test
@@ -117,14 +156,26 @@ class DeliveryEventHandlerTest {
         verify(campaignRepository).incrementFailedCount(CAMPAIGN_ID);
     }
 
-    @Test
-    void shouldThrowWhenRecipientNotFound() {
-        // Given
-        when(campaignRecipientRepository.findByResendMessageId(EMAIL_ID))
-                .thenReturn(Optional.empty());
+    static Stream<Arguments> eventsForUnknownRecipient() {
+        return Stream.of(
+                Arguments.of("delivered", (Consumer<DeliveryEventHandler>) h -> h.handleDelivered(EMAIL_ID)),
+                Arguments.of("opened", (Consumer<DeliveryEventHandler>) h -> h.handleOpened(EMAIL_ID)),
+                Arguments.of("soft bounce", (Consumer<DeliveryEventHandler>) h -> h.handleSoftBounced(EMAIL_ID)),
+                Arguments.of("failed", (Consumer<DeliveryEventHandler>) h -> h.handleFailed(EMAIL_ID, "reason")));
+    }
 
-        // When / Then
-        assertThatThrownBy(() -> deliveryEventHandler.handleDelivered(EMAIL_ID))
-                .isInstanceOf(ResponseStatusException.class);
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("eventsForUnknownRecipient")
+    void shouldIgnoreEventWhenRecipientNotFound(String name, Consumer<DeliveryEventHandler> handle) {
+        // Given
+        when(campaignRecipientRepository.findByResendMessageId(EMAIL_ID)).thenReturn(Optional.empty());
+
+        // When
+        handle.accept(deliveryEventHandler);
+
+        // Then
+        verify(campaignRecipientRepository).findByResendMessageId(EMAIL_ID);
+        verifyNoMoreInteractions(campaignRecipientRepository);
+        verifyNoInteractions(campaignRepository, suppressionsRepository);
     }
 }
