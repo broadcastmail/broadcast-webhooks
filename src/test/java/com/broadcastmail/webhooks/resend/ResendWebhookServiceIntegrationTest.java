@@ -45,7 +45,6 @@ class ResendWebhookServiceIntegrationTest {
         accountId = accountRepository.save(Account.builder()
                 .email(UUID.randomUUID() + "@example.com")
                 .passwordHash("")
-                .apiKeyHash(UUID.randomUUID().toString())
                 .plan(Plan.FREE)
                 .emailVerified(true)
                 .build()).getId();
