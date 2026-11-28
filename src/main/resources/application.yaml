@@ -19,6 +19,11 @@ app:
   origin-secret: ${ORIGIN_SECRET:}
   encryption:
     key: ${ENCRYPTION_KEY}
+  # e2e account ids, comma-separated (Railway shared variable); kept out of analytics
+  e2e-account-ids: ${E2E_ACCOUNT_IDS:}
+  # unset = billing events aren't sent
+  posthog:
+    api-key: ${POSTHOG_API_KEY:}
 
 stripe:
   webhook-secret: ${STRIPE_WEBHOOK_SECRET}

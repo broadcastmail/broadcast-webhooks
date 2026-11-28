@@ -3,6 +3,7 @@ package com.broadcastmail.webhooks.stripe;
 import com.broadcastmail.common.account.Account;
 import com.broadcastmail.common.account.AccountRepository;
 import com.broadcastmail.common.account.plan.Plan;
+import com.broadcastmail.webhooks.analytics.ProductAnalytics;
 import com.stripe.model.Event;
 import com.stripe.model.EventDataObjectDeserializer;
 import com.stripe.model.Subscription;
@@ -26,6 +27,8 @@ class StripeWebhookServiceTest {
 
     @Mock
     private AccountRepository accountRepository;
+    @Mock
+    private ProductAnalytics productAnalytics;
     @InjectMocks
     private StripeWebhookService stripeWebhookService;
 
