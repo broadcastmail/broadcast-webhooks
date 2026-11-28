@@ -2,6 +2,7 @@ package com.broadcastmail.webhooks.stripe;
 
 import com.broadcastmail.common.account.AccountRepository;
 import com.broadcastmail.common.account.plan.Plan;
+import com.broadcastmail.webhooks.analytics.ProductAnalytics;
 import com.stripe.model.Event;
 import com.stripe.model.EventDataObjectDeserializer;
 import com.stripe.model.StripeObject;
@@ -23,6 +24,7 @@ import java.util.UUID;
 @Slf4j
 public class StripeWebhookService {
     private final AccountRepository accountRepository;
+    private final ProductAnalytics productAnalytics;
 
     @Transactional
     public void process(Event event) {
@@ -58,6 +60,7 @@ public class StripeWebhookService {
                             account.setStripeCustomerId(customerId);
                             account.setStripeSubscriptionStatus("active");
                             accountRepository.save(account);
+                            productAnalytics.capture(account.getId(), "plan_upgraded", event.getId(), event.getCreated());
                             log.info("Account {} upgraded to STARTER", accountId);
                         },
                         () -> log.error("Account not found for id {}", accountId)
@@ -82,6 +85,9 @@ public class StripeWebhookService {
 
         accountRepository.findByStripeCustomerId(customerId).ifPresentOrElse(
                 account -> {
+                    if (cancelAtPeriodEnd && !account.isStripeCancelAtPeriodEnd()) {
+                        productAnalytics.capture(account.getId(), "cancellation_scheduled", event.getId(), event.getCreated());
+                    }
                     account.setStripeSubscriptionStatus(status);
                     account.setStripeCurrentPeriodEnd(periodEnd);
                     account.setStripeCancelAtPeriodEnd(cancelAtPeriodEnd);
@@ -110,6 +116,7 @@ public class StripeWebhookService {
                     account.setStripeCurrentPeriodEnd(null);
                     account.setStripeCancelAtPeriodEnd(false);
                     accountRepository.save(account);
+                    productAnalytics.capture(account.getId(), "subscription_ended", event.getId(), event.getCreated());
                     log.info("Account {} downgraded to FREE", account.getId());
                 },
                 () -> log.error("No account found for Stripe customer {}", customerId)

@@ -3,9 +3,12 @@ package com.broadcastmail.webhooks.stripe;
 import com.broadcastmail.common.account.Account;
 import com.broadcastmail.common.account.AccountRepository;
 import com.broadcastmail.common.account.plan.Plan;
+import com.broadcastmail.webhooks.analytics.ProductAnalytics;
 import com.stripe.model.Event;
 import com.stripe.model.EventDataObjectDeserializer;
 import com.stripe.model.Subscription;
+import com.stripe.model.SubscriptionItem;
+import com.stripe.model.SubscriptionItemCollection;
 import com.stripe.model.checkout.Session;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -13,6 +16,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -26,6 +30,8 @@ class StripeWebhookServiceTest {
 
     @Mock
     private AccountRepository accountRepository;
+    @Mock
+    private ProductAnalytics productAnalytics;
     @InjectMocks
     private StripeWebhookService stripeWebhookService;
 
@@ -51,6 +57,7 @@ class StripeWebhookServiceTest {
         assertThat(account.getPlan()).isEqualTo(Plan.STARTER);
         assertThat(account.getStripeCustomerId()).isEqualTo(CUSTOMER_ID);
         verify(accountRepository).save(account);
+        verify(productAnalytics).capture(eq(account.getId()), eq("plan_upgraded"), any(), anyLong());
     }
 
     @Test
@@ -72,6 +79,46 @@ class StripeWebhookServiceTest {
         // Then
         assertThat(account.getPlan()).isEqualTo(Plan.FREE);
         verify(accountRepository).save(account);
+        verify(productAnalytics).capture(eq(account.getId()), eq("subscription_ended"), any(), anyLong());
+    }
+
+    @Test
+    void shouldCaptureCancellationScheduledWhenCancelAtPeriodEndTurnsOn() {
+        // Given
+        Account account = Account.builder()
+                .id(UUID.fromString(ACCOUNT_ID))
+                .plan(Plan.STARTER)
+                .stripeCustomerId(CUSTOMER_ID)
+                .stripeCancelAtPeriodEnd(false)
+                .build();
+        when(accountRepository.findByStripeCustomerId(CUSTOMER_ID)).thenReturn(Optional.of(account));
+        Event event = mockSubscriptionUpdatedEvent(CUSTOMER_ID, true);
+
+        // When
+        stripeWebhookService.process(event);
+
+        // Then
+        assertThat(account.isStripeCancelAtPeriodEnd()).isTrue();
+        verify(productAnalytics).capture(eq(account.getId()), eq("cancellation_scheduled"), any(), anyLong());
+    }
+
+    @Test
+    void shouldNotCaptureCancellationScheduledAgainWhenAlreadyScheduled() {
+        // Given
+        Account account = Account.builder()
+                .id(UUID.fromString(ACCOUNT_ID))
+                .plan(Plan.STARTER)
+                .stripeCustomerId(CUSTOMER_ID)
+                .stripeCancelAtPeriodEnd(true)
+                .build();
+        when(accountRepository.findByStripeCustomerId(CUSTOMER_ID)).thenReturn(Optional.of(account));
+        Event event = mockSubscriptionUpdatedEvent(CUSTOMER_ID, true);
+
+        // When
+        stripeWebhookService.process(event);
+
+        // Then
+        verifyNoInteractions(productAnalytics);
     }
 
     @Test
@@ -130,6 +177,27 @@ class StripeWebhookServiceTest {
 
         Event event = mock(Event.class);
         when(event.getType()).thenReturn("customer.subscription.deleted");
+        when(event.getDataObjectDeserializer()).thenReturn(deserializer);
+        return event;
+    }
+
+    private Event mockSubscriptionUpdatedEvent(String customerId, boolean cancelAtPeriodEnd) {
+        SubscriptionItem item = mock(SubscriptionItem.class);
+        when(item.getCurrentPeriodEnd()).thenReturn(1_800_000_000L);
+        SubscriptionItemCollection items = mock(SubscriptionItemCollection.class);
+        when(items.getData()).thenReturn(List.of(item));
+
+        Subscription subscription = mock(Subscription.class);
+        when(subscription.getCustomer()).thenReturn(customerId);
+        when(subscription.getStatus()).thenReturn("active");
+        when(subscription.getItems()).thenReturn(items);
+        when(subscription.getCancelAtPeriodEnd()).thenReturn(cancelAtPeriodEnd);
+
+        EventDataObjectDeserializer deserializer = mock(EventDataObjectDeserializer.class);
+        when(deserializer.getObject()).thenReturn(Optional.of(subscription));
+
+        Event event = mock(Event.class);
+        when(event.getType()).thenReturn("customer.subscription.updated");
         when(event.getDataObjectDeserializer()).thenReturn(deserializer);
         return event;
     }
